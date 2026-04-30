@@ -419,8 +419,12 @@ class Engine {
         this.roomId = new URLSearchParams(window.location.search).get('room');
         if (!this.roomId) {
             this.roomId = 'pizarra-' + Math.random().toString(36).substr(2, 9);
-            const newUrl = window.location.origin + window.location.pathname + '?room=' + this.roomId;
-            window.history.replaceState({path: newUrl}, '', newUrl);
+            try {
+                const newUrl = window.location.origin + window.location.pathname + '?room=' + this.roomId;
+                window.history.replaceState({path: newUrl}, '', newUrl);
+            } catch (e) {
+                console.warn('Cannot use replaceState on file:// protocol', e);
+            }
         }
         this.myId = 'user-' + Math.random().toString(36).substr(2, 9);
         this.remoteCursors = {};
@@ -1104,7 +1108,10 @@ class Engine {
             return value;
         });
         const encoded = btoa(unescape(encodeURIComponent(state)));
-        const url = window.location.origin + window.location.pathname + '?room=' + this.roomId + '&state=' + encoded;
+        
+        let baseUrl = window.location.href.split('?')[0];
+        const url = baseUrl + '?room=' + this.roomId + '&state=' + encoded;
+        
         const linkEl = document.getElementById('share-link-text');
         linkEl.href = url;
         linkEl.innerText = url;
