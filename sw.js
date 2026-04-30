@@ -1,4 +1,4 @@
-const CACHE_NAME = 'antigravity-v1';
+const CACHE_NAME = 'antigravity-v2';
 const ASSETS = [
   'index.html',
   'style.css',
@@ -13,6 +13,22 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS);
     })
   );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
