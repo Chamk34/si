@@ -431,3 +431,31 @@ canvas#main-canvas {
 .hidden {
     display: none !important;
 }
+
+/* Remote Cursors */
+.remote-cursor {
+    position: absolute;
+    pointer-events: none;
+    z-index: 9998;
+    transition: transform 0.05s linear;
+}
+
+.remote-cursor-icon {
+    width: 24px;
+    height: 24px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.remote-cursor-label {
+    position: absolute;
+    top: 24px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0.8;
+}

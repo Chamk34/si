@@ -416,11 +416,94 @@ class Engine {
             'me': Date.now()
         };
 
-        // Real-time Collaboration Channel
-        this.channel = new BroadcastChannel('whiteboard_sync');
-        this.channel.onmessage = (e) => this.handleRemoteObject(e.data);
+        this.roomId = new URLSearchParams(window.location.search).get('room');
+        if (!this.roomId) {
+            this.roomId = 'pizarra-' + Math.random().toString(36).substr(2, 9);
+            const newUrl = window.location.origin + window.location.pathname + '?room=' + this.roomId;
+            window.history.replaceState({path: newUrl}, '', newUrl);
+        }
+        this.myId = 'user-' + Math.random().toString(36).substr(2, 9);
+        this.remoteCursors = {};
+        
+        this.setupNetwork();
         
         this.init();
+    }
+
+    setupNetwork() {
+        if (!window.mqtt) {
+            console.error("MQTT client not loaded");
+            return;
+        }
+        
+        this.client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+        this.topicBase = `antigravity/room/${this.roomId}`;
+        
+        this.client.on('connect', () => {
+            console.log('Connected to MQTT broker, room:', this.roomId);
+            this.client.subscribe(`${this.topicBase}/#`);
+        });
+
+        this.client.on('message', (topic, message) => {
+            try {
+                const data = JSON.parse(message.toString());
+                if (data.creatorId === this.myId) return; // Ignore our own messages
+                
+                if (topic === `${this.topicBase}/draw`) {
+                    this.handleRemoteObject(data);
+                } else if (topic === `${this.topicBase}/cursor`) {
+                    this.updateRemoteCursor(data);
+                }
+            } catch(e) {
+                console.error("Error parsing message", e);
+            }
+        });
+
+        // Broadcast cursor movement throttled
+        this.lastCursorBroadcast = 0;
+        window.addEventListener('pointermove', (e) => {
+            const now = Date.now();
+            if (now - this.lastCursorBroadcast > 50 && this.client && this.client.connected) {
+                const pos = this.getMousePos(e);
+                this.client.publish(`${this.topicBase}/cursor`, JSON.stringify({
+                    creatorId: this.myId,
+                    name: this.userName,
+                    color: this.currentColor,
+                    x: pos.x,
+                    y: pos.y
+                }), { qos: 0 });
+                this.lastCursorBroadcast = now;
+            }
+        });
+    }
+
+    updateRemoteCursor(data) {
+        let cursorEl = this.remoteCursors[data.creatorId];
+        if (!cursorEl) {
+            cursorEl = document.createElement('div');
+            cursorEl.className = 'remote-cursor';
+            cursorEl.innerHTML = `
+                <svg class="remote-cursor-icon" viewBox="0 0 24 24" fill="${data.color}"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.7z" stroke="white" stroke-width="1"/></svg>
+                <div class="remote-cursor-label" style="background-color: ${data.color}">${data.name}</div>
+            `;
+            document.getElementById('canvas-container').appendChild(cursorEl);
+            this.remoteCursors[data.creatorId] = cursorEl;
+        } else {
+            // Update color/name if changed
+            cursorEl.querySelector('.remote-cursor-icon').setAttribute('fill', data.color);
+            const label = cursorEl.querySelector('.remote-cursor-label');
+            label.innerText = data.name;
+            label.style.backgroundColor = data.color;
+        }
+        
+        // Update position (convert world to screen)
+        const screenX = (data.x * this.zoom) + this.panX;
+        const screenY = (data.y * this.zoom) + this.panY;
+        cursorEl.style.transform = `translate(${screenX}px, ${screenY}px)`;
+        
+        // Update activity
+        this.userActivity[data.creatorId] = Date.now();
+        this.updateActivityUI();
     }
 
     init() {
@@ -554,23 +637,23 @@ class Engine {
         const op = this.currentOpacity;
         switch (this.currentTool) {
             case 'pencil':
-                this.tempObject = new StrokeObject(this.points, this.currentColor, this.currentStrokeWidth, op);
+                this.tempObject = new StrokeObject(this.points, this.currentColor, this.currentStrokeWidth / this.zoom, op);
                 break;
             case 'eraser':
-                this.tempObject = new EraserObject(this.points, this.currentStrokeWidth * 4);
+                this.tempObject = new EraserObject(this.points, (this.currentStrokeWidth * 4) / this.zoom);
                 break;
             case 'rect':
                 const startR = this.points[0];
-                this.tempObject = new RectObject(startR.x, startR.y, pos.x - startR.x, pos.y - startR.y, this.currentColor, this.currentStrokeWidth, false, op);
+                this.tempObject = new RectObject(startR.x, startR.y, pos.x - startR.x, pos.y - startR.y, this.currentColor, this.currentStrokeWidth / this.zoom, false, op);
                 break;
             case 'circle':
                 const startC = this.points[0];
                 const r = Math.sqrt(Math.pow(pos.x - startC.x, 2) + Math.pow(pos.y - startC.y, 2));
-                this.tempObject = new CircleObject(startC.x, startC.y, r, this.currentColor, this.currentStrokeWidth, false, op);
+                this.tempObject = new CircleObject(startC.x, startC.y, r, this.currentColor, this.currentStrokeWidth / this.zoom, false, op);
                 break;
             case 'line':
                 const startL = this.points[0];
-                this.tempObject = new LineObject(startL.x, startL.y, pos.x, pos.y, this.currentColor, this.currentStrokeWidth, op);
+                this.tempObject = new LineObject(startL.x, startL.y, pos.x, pos.y, this.currentColor, this.currentStrokeWidth / this.zoom, op);
                 break;
         }
         this.render();
@@ -599,12 +682,14 @@ class Engine {
     }
 
     broadcastObject(obj) {
+        if (!this.client || !this.client.connected) return;
+        obj.creatorId = this.myId;
         // Serialize object for broadcasting
-        const data = JSON.parse(JSON.stringify(obj, (key, value) => {
+        const data = JSON.stringify(obj, (key, value) => {
             if (key === 'img') return value.src;
             return value;
-        }));
-        this.channel.postMessage(data);
+        });
+        this.client.publish(`${this.topicBase}/draw`, data, { qos: 1 });
     }
 
     handleRemoteObject(data) {
@@ -1019,7 +1104,7 @@ class Engine {
             return value;
         });
         const encoded = btoa(unescape(encodeURIComponent(state)));
-        const url = window.location.origin + window.location.pathname + '?state=' + encoded;
+        const url = window.location.origin + window.location.pathname + '?room=' + this.roomId + '&state=' + encoded;
         const linkEl = document.getElementById('share-link-text');
         linkEl.href = url;
         linkEl.innerText = url;
