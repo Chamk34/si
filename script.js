@@ -395,7 +395,12 @@ class Engine {
         this.currentOpacity = 1;
         this.currentFont = 'Inter';
         this.currentFontSize = 24;
-        this.userName = localStorage.getItem('antigravity_username') || 'Yo (Editor)';
+        let storedName = localStorage.getItem('antigravity_username');
+        if (!storedName) {
+            storedName = 'anonimo' + Math.random().toString(36).substr(2, 4);
+            localStorage.setItem('antigravity_username', storedName);
+        }
+        this.userName = storedName;
         
         this.recentColors = [];
         this.maxRecentColors = 7;
@@ -411,8 +416,6 @@ class Engine {
         this.points = [];
         
         this.userActivity = {
-            'user-1': Date.now() - 120000,
-            'user-2': Date.now() - 600000,
             'me': Date.now()
         };
 

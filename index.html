@@ -142,33 +142,11 @@
                 <div class="person-item current-user" id="me-item">
                     <div class="person-avatar" style="background: #10b981">YO</div>
                     <div class="person-info">
-                        <span class="person-name" id="my-name-display">Yo (Editor)</span>
+                        <span class="person-name" id="my-name-display">Cargando...</span>
                         <span class="person-activity">Editando ahora</span>
                     </div>
                     <button id="edit-name-btn" class="jump-btn" title="Cambiar mi nombre">
                         <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
-                    </button>
-                </div>
-                <div class="divider"></div>
-                <!-- Simulated people -->
-                <div class="person-item" data-id="user-1">
-                    <div class="person-avatar" style="background: #3b82f6">U1</div>
-                    <div class="person-info">
-                        <span class="person-name">Usuario 1</span>
-                        <span class="person-activity" id="activity-user-1">hace 1 min</span>
-                    </div>
-                    <button class="jump-btn" title="Ir al dibujo más reciente">
-                        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-                    </button>
-                </div>
-                <div class="person-item" data-id="user-2">
-                    <div class="person-avatar" style="background: #ef4444">U2</div>
-                    <div class="person-info">
-                        <span class="person-name">Usuario 2</span>
-                        <span class="person-activity" id="activity-user-2">hace 5 min</span>
-                    </div>
-                    <button class="jump-btn" title="Ir al dibujo más reciente">
-                        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
                     </button>
                 </div>
             </div>
@@ -195,7 +173,7 @@
         </div>
     </div>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=3"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
