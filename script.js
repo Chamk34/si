@@ -415,6 +415,10 @@ class Engine {
             'user-2': Date.now() - 600000,
             'me': Date.now()
         };
+
+        // Real-time Collaboration Channel
+        this.channel = new BroadcastChannel('whiteboard_sync');
+        this.channel.onmessage = (e) => this.handleRemoteObject(e.data);
         
         this.init();
     }
@@ -523,6 +527,12 @@ class Engine {
             this.panX += e.clientX - this.lastPan.x;
             this.panY += e.clientY - this.lastPan.y;
             this.lastPan = { x: e.clientX, y: e.clientY };
+            
+            // Update CSS Grid Offset
+            const container = document.getElementById('canvas-container');
+            container.style.setProperty('--grid-offset-x', `${this.panX}px`);
+            container.style.setProperty('--grid-offset-y', `${this.panY}px`);
+            
             this.render();
             return;
         }
@@ -579,10 +589,34 @@ class Engine {
         this.render();
     }
 
-    addObject(obj) {
+    addObject(obj, isRemote = false) {
         this.objects.push(obj);
-        this.saveState();
+        if (!isRemote) {
+            this.broadcastObject(obj);
+            this.saveState();
+        }
         this.render();
+    }
+
+    broadcastObject(obj) {
+        // Serialize object for broadcasting
+        const data = JSON.parse(JSON.stringify(obj, (key, value) => {
+            if (key === 'img') return value.src;
+            return value;
+        }));
+        this.channel.postMessage(data);
+    }
+
+    handleRemoteObject(data) {
+        const objects = this.deserialize(JSON.stringify([data]));
+        if (objects.length > 0) {
+            this.addObject(objects[0], true);
+            
+            // Add user if not exists or update activity
+            const creatorId = data.creatorId || 'remote-user';
+            this.userActivity[creatorId] = Date.now();
+            this.updateActivityUI();
+        }
     }
 
     saveState() {
@@ -646,7 +680,7 @@ class Engine {
         const dpr = window.devicePixelRatio || 1;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        this.drawGrid();
+        // Grid is now handled by CSS background for performance
 
         // Offscreen drawing for objects to handle eraser correctly
         const offCanvas = document.createElement('canvas');
@@ -665,31 +699,7 @@ class Engine {
         this.ctx.drawImage(offCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
     }
 
-    drawGrid() {
-        const gridSize = 40;
-        const dpr = window.devicePixelRatio || 1;
-        const width = this.canvas.width / dpr;
-        const height = this.canvas.height / dpr;
-        
-        this.ctx.save();
-        this.ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-        this.ctx.lineWidth = 1;
-        
-        const offsetX = this.panX % gridSize;
-        const offsetY = this.panY % gridSize;
-        
-        this.ctx.beginPath();
-        for (let x = offsetX; x <= width; x += gridSize) {
-            this.ctx.moveTo(x, 0);
-            this.ctx.lineTo(x, height);
-        }
-        for (let y = offsetY; y <= height; y += gridSize) {
-            this.ctx.moveTo(0, y);
-            this.ctx.lineTo(width, y);
-        }
-        this.ctx.stroke();
-        this.ctx.restore();
-    }
+
 
     setupToolbar() {
         const btns = document.querySelectorAll('.tool-btn');
@@ -740,6 +750,11 @@ class Engine {
             });
         });
         
+        document.getElementById('toggle-people-btn').addEventListener('click', () => {
+            const panel = document.getElementById('people-panel');
+            panel.classList.toggle('collapsed');
+        });
+
         document.getElementById('share-btn').addEventListener('click', () => this.showShareModal());
         document.getElementById('close-modal-btn').addEventListener('click', () => document.getElementById('share-modal').classList.add('hidden'));
         
@@ -747,9 +762,13 @@ class Engine {
         document.getElementById('my-name-display').innerText = this.userName;
         
         document.getElementById('copy-link-btn').addEventListener('click', () => {
-            const input = document.getElementById('share-link');
-            input.select();
+            const link = document.getElementById('share-link-text').href;
+            const tempInput = document.createElement('input');
+            tempInput.value = link;
+            document.body.appendChild(tempInput);
+            tempInput.select();
             document.execCommand('copy');
+            document.body.removeChild(tempInput);
             alert('Link copiado!');
         });
     }
@@ -1001,7 +1020,9 @@ class Engine {
         });
         const encoded = btoa(unescape(encodeURIComponent(state)));
         const url = window.location.origin + window.location.pathname + '?state=' + encoded;
-        document.getElementById('share-link').value = url;
+        const linkEl = document.getElementById('share-link-text');
+        linkEl.href = url;
+        linkEl.innerText = url;
         document.getElementById('share-modal').classList.remove('hidden');
     }
 

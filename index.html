@@ -101,6 +101,10 @@
                 <button class="tool-btn" id="redo-btn" title="Rehacer">
                     <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.91 16c1.05-3.19 4.06-5.5 7.59-5.5 1.96 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
                 </button>
+                <div class="divider"></div>
+                <button class="tool-btn" id="toggle-people-btn" title="Mostrar/Ocultar Personas">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                </button>
                 <button class="tool-btn share-btn" id="share-btn">
                     <span>Compartir</span>
                 </button>
@@ -183,7 +187,7 @@
                 <h3>Compartir Pizarra</h3>
                 <p>Cualquiera con este link podrá ver tu diseño.</p>
                 <div class="link-container">
-                    <input type="text" id="share-link" readonly>
+                    <a href="#" id="share-link-text" target="_blank" class="text-link">Cargando link...</a>
                     <button id="copy-link-btn">Copiar</button>
                 </div>
                 <button id="close-modal-btn">Cerrar</button>
