@@ -40,7 +40,7 @@ body {
     background-image: 
         linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-size: var(--grid-size, 40px) var(--grid-size, 40px);
     background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
 }
 

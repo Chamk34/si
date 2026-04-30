@@ -687,23 +687,23 @@ class Engine {
         const op = this.currentOpacity;
         switch (this.currentTool) {
             case 'pencil':
-                this.tempObject = new StrokeObject(this.points, this.currentColor, this.currentStrokeWidth / this.zoom, op);
+                this.tempObject = new StrokeObject(this.points, this.currentColor, this.currentStrokeWidth, op);
                 break;
             case 'eraser':
-                this.tempObject = new EraserObject(this.points, (this.currentStrokeWidth * 4) / this.zoom);
+                this.tempObject = new EraserObject(this.points, this.currentStrokeWidth * 4);
                 break;
             case 'rect':
                 const startR = this.points[0];
-                this.tempObject = new RectObject(startR.x, startR.y, pos.x - startR.x, pos.y - startR.y, this.currentColor, this.currentStrokeWidth / this.zoom, false, op);
+                this.tempObject = new RectObject(startR.x, startR.y, pos.x - startR.x, pos.y - startR.y, this.currentColor, this.currentStrokeWidth, false, op);
                 break;
             case 'circle':
                 const startC = this.points[0];
                 const r = Math.sqrt(Math.pow(pos.x - startC.x, 2) + Math.pow(pos.y - startC.y, 2));
-                this.tempObject = new CircleObject(startC.x, startC.y, r, this.currentColor, this.currentStrokeWidth / this.zoom, false, op);
+                this.tempObject = new CircleObject(startC.x, startC.y, r, this.currentColor, this.currentStrokeWidth, false, op);
                 break;
             case 'line':
                 const startL = this.points[0];
-                this.tempObject = new LineObject(startL.x, startL.y, pos.x, pos.y, this.currentColor, this.currentStrokeWidth / this.zoom, op);
+                this.tempObject = new LineObject(startL.x, startL.y, pos.x, pos.y, this.currentColor, this.currentStrokeWidth, op);
                 break;
         }
         this.render();
@@ -939,6 +939,12 @@ class Engine {
         // Calculate pan to keep the mouse point at the same place
         this.panX = mouseX - (worldX * this.zoom);
         this.panY = mouseY - (worldY * this.zoom);
+
+        // Update CSS grid
+        const container = document.getElementById('canvas-container');
+        container.style.setProperty('--grid-offset-x', `${this.panX}px`);
+        container.style.setProperty('--grid-offset-y', `${this.panY}px`);
+        container.style.setProperty('--grid-size', `${40 * this.zoom}px`);
 
         this.bgDirty = true;
         this.render();
