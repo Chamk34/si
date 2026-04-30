@@ -1,0 +1,17 @@
+{
+  "name": "Antigravity Whiteboard Engine",
+  "short_name": "Antigravity",
+  "description": "Una pizarra digital interactiva de alto rendimiento.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

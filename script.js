@@ -395,6 +395,7 @@ class Engine {
         this.currentOpacity = 1;
         this.currentFont = 'Inter';
         this.currentFontSize = 24;
+        this.userName = localStorage.getItem('antigravity_username') || 'Yo (Editor)';
         
         this.recentColors = [];
         this.maxRecentColors = 7;
@@ -741,6 +742,10 @@ class Engine {
         
         document.getElementById('share-btn').addEventListener('click', () => this.showShareModal());
         document.getElementById('close-modal-btn').addEventListener('click', () => document.getElementById('share-modal').classList.add('hidden'));
+        
+        document.getElementById('edit-name-btn').addEventListener('click', () => this.changeMyName());
+        document.getElementById('my-name-display').innerText = this.userName;
+        
         document.getElementById('copy-link-btn').addEventListener('click', () => {
             const input = document.getElementById('share-link');
             input.select();
@@ -834,6 +839,15 @@ class Engine {
         if (mins < 1) return 'ahora mismo';
         if (mins === 1) return 'hace 1 min';
         return `hace ${mins} min`;
+    }
+
+    changeMyName() {
+        const newName = prompt('Ingrese su nuevo nombre:', this.userName);
+        if (newName && newName.trim() !== '') {
+            this.userName = newName.trim();
+            localStorage.setItem('antigravity_username', this.userName);
+            document.getElementById('my-name-display').innerText = this.userName;
+        }
     }
 
     jumpToLastObjectOfCreator(creatorId) {
