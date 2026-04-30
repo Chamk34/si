@@ -432,6 +432,12 @@ class Engine {
         this.myId = 'user-' + Math.random().toString(36).substr(2, 9);
         this.remoteCursors = {};
         
+        // Update my user display immediately
+        const myNameDisplay = document.getElementById('my-name-display');
+        const myAvatar = document.querySelector('#me-item .person-avatar');
+        if (myNameDisplay) myNameDisplay.innerText = this.userName;
+        if (myAvatar) myAvatar.innerText = this.userName.substring(0, 2).toUpperCase();
+        
         this.setupNetwork();
         
         this.init();
@@ -544,6 +550,23 @@ class Engine {
             cursor.style.top = `${e.clientY}px`;
         });
         window.addEventListener('pointerup', (e) => this.handlePointerUp(e));
+        
+        // Explicit touch events to ensure drawing works on stubborn mobile browsers
+        container.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.handlePointerDown(e.touches[0]);
+        }, { passive: false });
+        
+        window.addEventListener('touchmove', (e) => {
+            if (this.isDrawing || this.isPanning || this.isRotating) {
+                e.preventDefault();
+                this.handlePointerMove(e.touches[0]);
+            }
+        }, { passive: false });
+        
+        window.addEventListener('touchend', (e) => {
+            this.handlePointerUp(e.changedTouches[0]);
+        });
         
         // Image input
         document.getElementById('image-input').addEventListener('change', (e) => this.handleImageUpload(e));
@@ -775,23 +798,33 @@ class Engine {
         const dpr = window.devicePixelRatio || 1;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Grid is now handled by CSS background for performance
+        // Group objects by creator to isolate Eraser effects
+        const creators = [...new Set(this.objects.map(o => o.creatorId))];
+        if (this.tempObject && !creators.includes(this.tempObject.creatorId)) {
+            creators.push(this.tempObject.creatorId);
+        }
+        if (creators.length === 0) creators.push(this.myId);
 
-        // Offscreen drawing for objects to handle eraser correctly
-        const offCanvas = document.createElement('canvas');
-        offCanvas.width = this.canvas.width;
-        offCanvas.height = this.canvas.height;
-        const offCtx = offCanvas.getContext('2d');
-        
-        offCtx.save();
-        offCtx.translate(this.panX * dpr, this.panY * dpr);
-        offCtx.scale(this.zoom * dpr, this.zoom * dpr);
+        creators.forEach(creatorId => {
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = this.canvas.width;
+            offCanvas.height = this.canvas.height;
+            const offCtx = offCanvas.getContext('2d');
+            
+            offCtx.save();
+            offCtx.translate(this.panX * dpr, this.panY * dpr);
+            offCtx.scale(this.zoom * dpr, this.zoom * dpr);
 
-        this.objects.forEach(obj => obj.draw(offCtx));
-        if (this.tempObject) this.tempObject.draw(offCtx);
-        offCtx.restore();
+            const userObjects = this.objects.filter(o => o.creatorId === creatorId);
+            userObjects.forEach(obj => obj.draw(offCtx));
+            
+            if (this.tempObject && (this.tempObject.creatorId === creatorId || (creatorId === this.myId && !this.tempObject.creatorId))) {
+                this.tempObject.draw(offCtx);
+            }
+            offCtx.restore();
 
-        this.ctx.drawImage(offCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+            this.ctx.drawImage(offCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+        });
     }
 
 
@@ -998,6 +1031,8 @@ class Engine {
             this.userName = newName.trim();
             localStorage.setItem('antigravity_username', this.userName);
             document.getElementById('my-name-display').innerText = this.userName;
+            const myAvatar = document.querySelector('#me-item .person-avatar');
+            if (myAvatar) myAvatar.innerText = this.userName.substring(0, 2).toUpperCase();
         }
     }
 
