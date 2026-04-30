@@ -466,6 +466,10 @@ class Engine {
                     this.handleRemoteObject(data);
                 } else if (topic === `${this.topicBase}/cursor`) {
                     this.updateRemoteCursor(data);
+                } else if (topic === `${this.topicBase}/action`) {
+                    if (data.type === 'undo') {
+                        this.handleRemoteUndo(data.creatorId);
+                    }
                 }
             } catch(e) {
                 console.error("Error parsing message", e);
@@ -491,30 +495,7 @@ class Engine {
     }
 
     updateRemoteCursor(data) {
-        let cursorEl = this.remoteCursors[data.creatorId];
-        if (!cursorEl) {
-            cursorEl = document.createElement('div');
-            cursorEl.className = 'remote-cursor';
-            cursorEl.innerHTML = `
-                <svg class="remote-cursor-icon" viewBox="0 0 24 24" fill="${data.color}"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.7z" stroke="white" stroke-width="1"/></svg>
-                <div class="remote-cursor-label" style="background-color: ${data.color}">${data.name}</div>
-            `;
-            document.getElementById('canvas-container').appendChild(cursorEl);
-            this.remoteCursors[data.creatorId] = cursorEl;
-        } else {
-            // Update color/name if changed
-            cursorEl.querySelector('.remote-cursor-icon').setAttribute('fill', data.color);
-            const label = cursorEl.querySelector('.remote-cursor-label');
-            label.innerText = data.name;
-            label.style.backgroundColor = data.color;
-        }
-        
-        // Update position (convert world to screen)
-        const screenX = (data.x * this.zoom) + this.panX;
-        const screenY = (data.y * this.zoom) + this.panY;
-        cursorEl.style.transform = `translate(${screenX}px, ${screenY}px)`;
-        
-        // Update activity and people list
+        // Update activity and people list, but do not show the visual cursor on canvas
         this.addOrUpdatePersonInList(data.creatorId, data.name, data.color, Date.now());
     }
 
@@ -738,29 +719,55 @@ class Engine {
     }
 
     saveState() {
-        this.history.push(JSON.stringify(this.objects, (key, value) => {
-            if (key === 'img') return value.src; // Handle image serialization
-            return value;
-        }));
+        // We no longer use a global history array.
+        // The source of truth is this.objects. 
         this.redoStack = [];
     }
 
     undo() {
-        if (this.history.length > 0) {
-            const current = this.history.pop();
-            this.redoStack.push(current);
-            const last = this.history[this.history.length - 1];
-            this.objects = last ? this.deserialize(last) : [];
+        // Find the last object created by me
+        const myObjects = this.objects.filter(o => o.creatorId === this.myId);
+        if (myObjects.length > 0) {
+            const lastObj = myObjects[myObjects.length - 1];
+            const index = this.objects.lastIndexOf(lastObj);
+            
+            // Remove it
+            this.objects.splice(index, 1);
+            this.redoStack.push(lastObj);
+            
             this.render();
+            
+            // Broadcast undo action
+            if (this.client && this.client.connected) {
+                this.client.publish(`${this.topicBase}/action`, JSON.stringify({
+                    type: 'undo',
+                    creatorId: this.myId
+                }), { qos: 1 });
+            }
         }
     }
 
     redo() {
         if (this.redoStack.length > 0) {
-            const state = this.redoStack.pop();
-            this.history.push(state);
-            this.objects = this.deserialize(state);
+            const obj = this.redoStack.pop();
+            this.objects.push(obj);
             this.render();
+            
+            // Re-broadcast the object
+            this.broadcastObject(obj);
+        }
+    }
+
+    handleRemoteUndo(creatorId) {
+        // Find the last object by this remote user and remove it
+        const remoteObjects = this.objects.filter(o => o.creatorId === creatorId);
+        if (remoteObjects.length > 0) {
+            const lastObj = remoteObjects[remoteObjects.length - 1];
+            const index = this.objects.lastIndexOf(lastObj);
+            if (index !== -1) {
+                this.objects.splice(index, 1);
+                this.render();
+            }
         }
     }
 
@@ -798,6 +805,15 @@ class Engine {
         const dpr = window.devicePixelRatio || 1;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
+        if (!this.userLayerCanvas) {
+            this.userLayerCanvas = document.createElement('canvas');
+            this.userLayerCtx = this.userLayerCanvas.getContext('2d');
+        }
+        if (this.userLayerCanvas.width !== this.canvas.width) {
+            this.userLayerCanvas.width = this.canvas.width;
+            this.userLayerCanvas.height = this.canvas.height;
+        }
+        
         // Group objects by creator to isolate Eraser effects
         const creators = [...new Set(this.objects.map(o => o.creatorId))];
         if (this.tempObject && !creators.includes(this.tempObject.creatorId)) {
@@ -806,24 +822,20 @@ class Engine {
         if (creators.length === 0) creators.push(this.myId);
 
         creators.forEach(creatorId => {
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = this.canvas.width;
-            offCanvas.height = this.canvas.height;
-            const offCtx = offCanvas.getContext('2d');
-            
-            offCtx.save();
-            offCtx.translate(this.panX * dpr, this.panY * dpr);
-            offCtx.scale(this.zoom * dpr, this.zoom * dpr);
+            this.userLayerCtx.clearRect(0, 0, this.userLayerCanvas.width, this.userLayerCanvas.height);
+            this.userLayerCtx.save();
+            this.userLayerCtx.translate(this.panX * dpr, this.panY * dpr);
+            this.userLayerCtx.scale(this.zoom * dpr, this.zoom * dpr);
 
             const userObjects = this.objects.filter(o => o.creatorId === creatorId);
-            userObjects.forEach(obj => obj.draw(offCtx));
+            userObjects.forEach(obj => obj.draw(this.userLayerCtx));
             
             if (this.tempObject && (this.tempObject.creatorId === creatorId || (creatorId === this.myId && !this.tempObject.creatorId))) {
-                this.tempObject.draw(offCtx);
+                this.tempObject.draw(this.userLayerCtx);
             }
-            offCtx.restore();
+            this.userLayerCtx.restore();
 
-            this.ctx.drawImage(offCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+            this.ctx.drawImage(this.userLayerCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
         });
     }
 
