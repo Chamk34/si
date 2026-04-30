@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Whiteboard Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@400;600&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="canvas-container">
+            <canvas id="main-canvas"></canvas>
+        </div>
+
+        <!-- Floating Toolbar -->
+        <nav id="toolbar" class="glass">
+            <div class="tool-group">
+                <button class="tool-btn active" id="tool-pencil" title="Lápiz">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+                <button class="tool-btn" id="tool-eraser" title="Borrador">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M16.24 3.56l4.95 4.94c.39.39.39 1.04 0 1.41L9.22 21.87l-7.07-7.07L16.24 3.56zM4.64 14.8l4.58 4.58 9.19-9.19-4.58-4.58-9.19 9.19z"/></svg>
+                </button>
+                <button class="tool-btn" id="tool-fill" title="Rellenar">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM11 7h2v2h-2zm0 4h2v6h-2z"/></svg>
+                </button>
+            </div>
+            
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button class="tool-btn" id="tool-rect" title="Rectángulo">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 3h18v18H3V3zm16 16V5H5v14h14z"/></svg>
+                </button>
+                <button class="tool-btn" id="tool-circle" title="Círculo">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                </button>
+                <button class="tool-btn" id="tool-line" title="Línea">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M21 3.5l-1.5-1.5-16 16 1.5 1.5 16-16z"/></svg>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button class="tool-btn" id="tool-text" title="Texto">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M5 4v3h5.5v12h3V7H19V4H5z"/></svg>
+                </button>
+                <button class="tool-btn" id="tool-image" title="Cargar Imagen">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    <input type="file" id="image-input" accept="image/*" hidden>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button class="tool-btn" id="tool-select" title="Mover/Rotar">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M10.5 9h3L12 6l-1.5 3zM15 10.5v3l3-1.5-3-1.5zM12 18l1.5-3h-3L12 18zM9 13.5v-3l-3 1.5 3 1.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                </button>
+                <button class="tool-btn" id="tool-pan" title="Desplazar">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2l4 4-1.4 1.4L13 5.8V11h5.2l-1.6-1.6L18 8l4 4-4 4-1.4-1.4 1.6-1.6H13v5.2l1.6-1.6L16 18l-4 4-4-4 1.4-1.4L11 18.2V13H5.8l1.6 1.6L6 16l-4-4 4-4 1.4 1.4L5.8 11H11V5.8L9.4 7.4 8 6l4-4z"/></svg>
+                </button>
+            </div>
+            
+            <div class="divider"></div>
+
+            <div id="color-section">
+                <div id="color-display" class="color-preview"></div>
+                <div id="color-picker-container" class="glass hidden">
+                    <canvas id="color-wheel" width="150" height="150"></canvas>
+                    <div class="color-presets">
+                        <div class="swatch" style="background: #3b82f6" data-color="#3b82f6" title="Azul"></div>
+                        <div class="swatch" style="background: #ef4444" data-color="#ef4444" title="Rojo"></div>
+                        <div class="swatch" style="background: #f59e0b" data-color="#f59e0b" title="Amarillo"></div>
+                        <div class="swatch" style="background: #10b981" data-color="#10b981" title="Verde"></div>
+                        <div class="swatch" style="background: #8b5cf6" data-color="#8b5cf6" title="Morado"></div>
+                        <div class="swatch" style="background: #000000" data-color="#000000" title="Negro"></div>
+                        <div class="swatch" style="background: #06b6d4" data-color="#06b6d4" title="Celeste"></div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="recent-colors-label">Recientes</div>
+                    <div id="recent-colors" class="color-presets">
+                        <!-- Recent colors will be added here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button class="tool-btn" id="undo-btn" title="Deshacer">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+                </button>
+                <button class="tool-btn" id="redo-btn" title="Rehacer">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.91 16c1.05-3.19 4.06-5.5 7.59-5.5 1.96 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+                </button>
+                <button class="tool-btn share-btn" id="share-btn">
+                    <span>Compartir</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Tool Settings (Contextual) -->
+        <div id="tool-settings" class="glass">
+            <div id="font-settings" class="setting-group hidden">
+                <select id="font-family">
+                    <option value="Inter">Inter</option>
+                    <option value="Roboto">Roboto</option>
+                    <option value="Montserrat">Montserrat</option>
+                </select>
+                <input type="number" id="font-size" value="24" min="8" max="120">
+            </div>
+            <div id="stroke-settings" class="setting-group">
+                <div class="slider-item">
+                    <label>Grosor</label>
+                    <input type="range" id="stroke-width" min="1" max="50" value="3">
+                    <span id="stroke-width-value">3px</span>
+                </div>
+                <div class="slider-item">
+                    <label>Opacidad</label>
+                    <input type="range" id="opacity-slider" min="0" max="100" value="100">
+                    <span id="opacity-value">100%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Joined People Panel -->
+        <div id="people-panel" class="glass">
+            <div class="panel-header">Personas Unidas</div>
+            <div id="people-list">
+                <!-- Simulated people -->
+                <div class="person-item" data-id="user-1">
+                    <div class="person-avatar" style="background: #3b82f6">U1</div>
+                    <div class="person-info">
+                        <span class="person-name">Usuario 1</span>
+                        <span class="person-activity" id="activity-user-1">hace 1 min</span>
+                    </div>
+                    <button class="jump-btn" title="Ir al dibujo más reciente">
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                    </button>
+                </div>
+                <div class="person-item" data-id="user-2">
+                    <div class="person-avatar" style="background: #ef4444">U2</div>
+                    <div class="person-info">
+                        <span class="person-name">Usuario 2</span>
+                        <span class="person-activity" id="activity-user-2">hace 5 min</span>
+                    </div>
+                    <button class="jump-btn" title="Ir al dibujo más reciente">
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Cursor -->
+        <div id="custom-cursor">
+            <svg id="cursor-svg" width="24" height="24" viewBox="0 0 24 24">
+                <path id="cursor-pencil" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
+            </svg>
+        </div>
+
+        <!-- Share Modal -->
+        <div id="share-modal" class="modal-overlay hidden">
+            <div class="modal-content glass">
+                <h3>Compartir Pizarra</h3>
+                <p>Cualquiera con este link podrá ver tu diseño.</p>
+                <div class="link-container">
+                    <input type="text" id="share-link" readonly>
+                    <button id="copy-link-btn">Copiar</button>
+                </div>
+                <button id="close-modal-btn">Cerrar</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
