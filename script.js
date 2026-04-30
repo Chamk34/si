@@ -505,9 +505,8 @@ class Engine {
         const screenY = (data.y * this.zoom) + this.panY;
         cursorEl.style.transform = `translate(${screenX}px, ${screenY}px)`;
         
-        // Update activity
-        this.userActivity[data.creatorId] = Date.now();
-        this.updateActivityUI();
+        // Update activity and people list
+        this.addOrUpdatePersonInList(data.creatorId, data.name, data.color, Date.now());
     }
 
     init() {
@@ -701,10 +700,14 @@ class Engine {
         if (objects.length > 0) {
             this.addObject(objects[0], true);
             
-            // Add user if not exists or update activity
-            const creatorId = data.creatorId || 'remote-user';
-            this.userActivity[creatorId] = Date.now();
-            this.updateActivityUI();
+            // Update activity based on drawing events too
+            if (data.name && data.color) {
+                this.addOrUpdatePersonInList(data.creatorId, data.name, data.color, Date.now());
+            } else {
+                const creatorId = data.creatorId || 'remote-user';
+                this.userActivity[creatorId] = Date.now();
+                this.updateActivityUI();
+            }
         }
     }
 
@@ -831,12 +834,15 @@ class Engine {
         document.getElementById('font-family').addEventListener('change', (e) => this.currentFont = e.target.value);
         document.getElementById('font-size').addEventListener('input', (e) => this.currentFontSize = parseInt(e.target.value));
         
-        // People Jump Logic
-        document.querySelectorAll('.jump-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const personId = e.currentTarget.closest('.person-item').dataset.id;
+        // People Jump Logic (Delegated)
+        document.getElementById('people-list').addEventListener('click', (e) => {
+            const btn = e.target.closest('.jump-btn');
+            if (btn) {
+                const personItem = btn.closest('.person-item');
+                const personId = personItem ? personItem.dataset.id : null;
+                if (!personId) return; // Prevent crashing if no data-id is present (like me-item)
                 this.jumpToLastObjectOfCreator(personId);
-            });
+            }
         });
         
         document.getElementById('toggle-people-btn').addEventListener('click', () => {
@@ -934,10 +940,44 @@ class Engine {
 
     updateActivityUI() {
         for (const [userId, timestamp] of Object.entries(this.userActivity)) {
+            if (userId === 'me') continue;
             const el = document.getElementById(`activity-${userId}`);
             if (el) {
                 el.innerText = this.formatRelativeTime(timestamp);
             }
+        }
+    }
+
+    addOrUpdatePersonInList(creatorId, name, color, timestamp) {
+        this.userActivity[creatorId] = timestamp;
+        let personItem = document.querySelector(`.person-item[data-id="${creatorId}"]`);
+        
+        if (!personItem) {
+            const list = document.getElementById('people-list');
+            personItem = document.createElement('div');
+            personItem.className = 'person-item';
+            personItem.dataset.id = creatorId;
+            
+            // Generate initials
+            const initials = name.substring(0, 2).toUpperCase();
+            
+            personItem.innerHTML = `
+                <div class="person-avatar" style="background: ${color}">${initials}</div>
+                <div class="person-info">
+                    <span class="person-name">${name}</span>
+                    <span class="person-activity" id="activity-${creatorId}">ahora mismo</span>
+                </div>
+                <button class="jump-btn" title="Ir al dibujo más reciente">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                </button>
+            `;
+            list.appendChild(personItem);
+        } else {
+            // Update existing
+            personItem.querySelector('.person-avatar').style.background = color;
+            personItem.querySelector('.person-avatar').innerText = name.substring(0, 2).toUpperCase();
+            personItem.querySelector('.person-name').innerText = name;
+            personItem.querySelector(`#activity-${creatorId}`).innerText = this.formatRelativeTime(timestamp);
         }
     }
 
@@ -959,6 +999,7 @@ class Engine {
     }
 
     jumpToLastObjectOfCreator(creatorId) {
+        if (!creatorId) return;
         const obj = this.objects.slice().reverse().find(o => o.creatorId === creatorId);
         if (obj) {
             this.panX = -obj.x + (this.canvas.width / 2 / (window.devicePixelRatio || 1));
@@ -972,13 +1013,7 @@ class Engine {
                 this.render();
             }, 2000);
         } else {
-            // If no objects yet, let's create a dummy one for the simulated users to jump to
-            if (creatorId !== 'me') {
-                const dummy = new RectObject(Math.random() * 500, Math.random() * 500, 100, 100, '#3b82f6', 2);
-                dummy.creatorId = creatorId;
-                this.addObject(dummy);
-                this.jumpToLastObjectOfCreator(creatorId);
-            }
+            alert('Esta persona aún no ha dibujado nada.');
         }
     }
 
