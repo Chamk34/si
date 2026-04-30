@@ -516,6 +516,7 @@ class Engine {
         this.canvas.width = window.innerWidth * dpr;
         this.canvas.height = window.innerHeight * dpr;
         this.ctx.scale(dpr, dpr);
+        this.bgDirty = true;
         this.render();
     }
 
@@ -537,16 +538,53 @@ class Engine {
             e.preventDefault();
             this.handlePointerDown(e.touches[0]);
         }, { passive: false });
+        // Zoom on PC (Mouse wheel)
+        container.addEventListener('wheel', (e) => {
+            if (this.currentTool === 'pan') {
+                e.preventDefault();
+                const zoomAmount = e.deltaY > 0 ? 0.9 : 1.1;
+                this.zoomCanvas(zoomAmount, e.clientX, e.clientY);
+            }
+        }, { passive: false });
+
+        let initialPinchDistance = null;
+        
+        container.addEventListener('touchstart', (e) => {
+            if (this.currentTool === 'pan' && e.touches.length === 2) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            } else if (e.touches.length === 1) {
+                e.preventDefault();
+                this.handlePointerDown(e.touches[0]);
+            }
+        }, { passive: false });
         
         window.addEventListener('touchmove', (e) => {
-            if (this.isDrawing || this.isPanning || this.isRotating) {
+            if (this.currentTool === 'pan' && e.touches.length === 2 && initialPinchDistance) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const zoomAmount = distance / initialPinchDistance;
+                initialPinchDistance = distance; // Update for continuous zoom
+                
+                const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                
+                this.zoomCanvas(zoomAmount, centerX, centerY);
+            } else if (this.isDrawing || this.isPanning || this.isRotating) {
                 e.preventDefault();
                 this.handlePointerMove(e.touches[0]);
             }
         }, { passive: false });
         
         window.addEventListener('touchend', (e) => {
-            this.handlePointerUp(e.changedTouches[0]);
+            if (e.touches.length < 2) initialPinchDistance = null;
+            if (e.changedTouches.length === 1) {
+                this.handlePointerUp(e.changedTouches[0]);
+            }
         });
         
         // Image input
@@ -617,6 +655,7 @@ class Engine {
         const pos = this.getMousePos(e);
 
         if (this.isPanning) {
+            if (e.touches && e.touches.length === 2) return; // Handled by pinch zoom
             this.panX += e.clientX - this.lastPan.x;
             this.panY += e.clientY - this.lastPan.y;
             this.lastPan = { x: e.clientX, y: e.clientY };
@@ -626,6 +665,7 @@ class Engine {
             container.style.setProperty('--grid-offset-x', `${this.panX}px`);
             container.style.setProperty('--grid-offset-y', `${this.panY}px`);
             
+            this.bgDirty = true;
             this.render();
             return;
         }
@@ -688,6 +728,7 @@ class Engine {
             this.broadcastObject(obj);
             this.saveState();
         }
+        this.bgDirty = true;
         this.render();
     }
 
@@ -705,6 +746,7 @@ class Engine {
     handleRemoteObject(data) {
         const objects = this.deserialize(JSON.stringify([data]));
         if (objects.length > 0) {
+            this.bgDirty = true;
             this.addObject(objects[0], true);
             
             // Update activity based on drawing events too
@@ -735,6 +777,7 @@ class Engine {
             this.objects.splice(index, 1);
             this.redoStack.push(lastObj);
             
+            this.bgDirty = true;
             this.render();
             
             // Broadcast undo action
@@ -751,6 +794,7 @@ class Engine {
         if (this.redoStack.length > 0) {
             const obj = this.redoStack.pop();
             this.objects.push(obj);
+            this.bgDirty = true;
             this.render();
             
             // Re-broadcast the object
@@ -766,6 +810,7 @@ class Engine {
             const index = this.objects.lastIndexOf(lastObj);
             if (index !== -1) {
                 this.objects.splice(index, 1);
+                this.bgDirty = true;
                 this.render();
             }
         }
@@ -805,38 +850,98 @@ class Engine {
         const dpr = window.devicePixelRatio || 1;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        if (!this.userLayerCanvas) {
+        if (!this.myCanvas) {
+            this.myCanvas = document.createElement('canvas');
+            this.myCtx = this.myCanvas.getContext('2d');
+            this.otherCanvas = document.createElement('canvas');
+            this.otherCtx = this.otherCanvas.getContext('2d');
+            
             this.userLayerCanvas = document.createElement('canvas');
             this.userLayerCtx = this.userLayerCanvas.getContext('2d');
-        }
-        if (this.userLayerCanvas.width !== this.canvas.width) {
-            this.userLayerCanvas.width = this.canvas.width;
-            this.userLayerCanvas.height = this.canvas.height;
+            this.bgDirty = true;
         }
         
-        // Group objects by creator to isolate Eraser effects
-        const creators = [...new Set(this.objects.map(o => o.creatorId))];
-        if (this.tempObject && !creators.includes(this.tempObject.creatorId)) {
-            creators.push(this.tempObject.creatorId);
+        if (this.myCanvas.width !== this.canvas.width) {
+            this.myCanvas.width = this.canvas.width;
+            this.myCanvas.height = this.canvas.height;
+            this.otherCanvas.width = this.canvas.width;
+            this.otherCanvas.height = this.canvas.height;
+            this.userLayerCanvas.width = this.canvas.width;
+            this.userLayerCanvas.height = this.canvas.height;
+            this.bgDirty = true;
         }
-        if (creators.length === 0) creators.push(this.myId);
+        
+        if (this.bgDirty) {
+            this.myCtx.clearRect(0, 0, this.myCanvas.width, this.myCanvas.height);
+            this.otherCtx.clearRect(0, 0, this.otherCanvas.width, this.otherCanvas.height);
+            
+            const creators = [...new Set(this.objects.map(o => o.creatorId))];
+            
+            creators.forEach(creatorId => {
+                const targetCtx = (creatorId === this.myId) ? this.myCtx : this.otherCtx;
+                
+                this.userLayerCtx.clearRect(0, 0, this.userLayerCanvas.width, this.userLayerCanvas.height);
+                this.userLayerCtx.save();
+                this.userLayerCtx.translate(this.panX * dpr, this.panY * dpr);
+                this.userLayerCtx.scale(this.zoom * dpr, this.zoom * dpr);
 
-        creators.forEach(creatorId => {
+                const userObjects = this.objects.filter(o => o.creatorId === creatorId);
+                userObjects.forEach(obj => obj.draw(this.userLayerCtx));
+                this.userLayerCtx.restore();
+
+                targetCtx.drawImage(this.userLayerCanvas, 0, 0);
+            });
+            this.bgDirty = false;
+        }
+
+        // Draw other users
+        this.ctx.drawImage(this.otherCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+        
+        // Draw my users + tempObject
+        if (this.tempObject && this.currentTool === 'eraser') {
             this.userLayerCtx.clearRect(0, 0, this.userLayerCanvas.width, this.userLayerCanvas.height);
+            this.userLayerCtx.drawImage(this.myCanvas, 0, 0);
+            
             this.userLayerCtx.save();
             this.userLayerCtx.translate(this.panX * dpr, this.panY * dpr);
             this.userLayerCtx.scale(this.zoom * dpr, this.zoom * dpr);
-
-            const userObjects = this.objects.filter(o => o.creatorId === creatorId);
-            userObjects.forEach(obj => obj.draw(this.userLayerCtx));
-            
-            if (this.tempObject && (this.tempObject.creatorId === creatorId || (creatorId === this.myId && !this.tempObject.creatorId))) {
-                this.tempObject.draw(this.userLayerCtx);
-            }
+            this.tempObject.draw(this.userLayerCtx);
             this.userLayerCtx.restore();
-
+            
             this.ctx.drawImage(this.userLayerCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
-        });
+        } else {
+            this.ctx.drawImage(this.myCanvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+            if (this.tempObject) {
+                this.ctx.save();
+                this.ctx.translate(this.panX * dpr, this.panY * dpr);
+                this.ctx.scale(this.zoom * dpr, this.zoom * dpr);
+                this.tempObject.draw(this.ctx);
+                this.ctx.restore();
+            }
+        }
+    }
+
+    zoomCanvas(amount, clientX, clientY) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
+
+        // Calculate position before zoom
+        const worldX = (mouseX - this.panX) / this.zoom;
+        const worldY = (mouseY - this.panY) / this.zoom;
+
+        // Apply zoom
+        this.zoom *= amount;
+        
+        // Clamp zoom
+        this.zoom = Math.max(0.1, Math.min(this.zoom, 10));
+
+        // Calculate pan to keep the mouse point at the same place
+        this.panX = mouseX - (worldX * this.zoom);
+        this.panY = mouseY - (worldY * this.zoom);
+
+        this.bgDirty = true;
+        this.render();
     }
 
 
@@ -1055,11 +1160,14 @@ class Engine {
             this.panX = -obj.x + (this.canvas.width / 2 / (window.devicePixelRatio || 1));
             this.panY = -obj.y + (this.canvas.height / 2 / (window.devicePixelRatio || 1));
             
+            this.bgDirty = true;
+            
             // Highlight briefly instead of persistent selection
             obj.selected = true;
             this.render();
             setTimeout(() => {
                 obj.selected = false;
+                this.bgDirty = true;
                 this.render();
             }, 2000);
         } else {
